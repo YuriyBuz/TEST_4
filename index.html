@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Оцінка Компетенцій: Майстер Зміни (Виробництво Соусів)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root { --bg-color: #f8fafc; --card-bg: #ffffff; --text-main: #1e293b; --primary: #059669; --danger: #dc2626; }
+        body { background-color: var(--bg-color); color: var(--text-main); font-family: sans-serif; padding-bottom: 2rem; }
+        .card { background-color: var(--card-bg); border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        .option-btn { transition: all 0.2s; border: 2px solid #e2e8f0; position: relative; }
+        .option-btn:not(.disabled):hover { border-color: var(--primary); background-color: #f0fdf4; }
+        .option-btn.correct-choice { border-color: var(--primary) !important; background-color: #ecfdf5 !important; }
+        .option-btn.wrong-choice { border-color: var(--danger) !important; background-color: #fef2f2 !important; }
+        .option-btn.disabled { cursor: default; opacity: 0.7; }
+        .feedback-box { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .hidden { display: none !important; }
+        .spinner { animation: rotate 2s linear infinite; width: 16px; height: 16px; }
+        @keyframes rotate { 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+    <div class="container mx-auto max-w-2xl p-4 sm:p-6">
+        <header class="text-center mb-6 pt-4">
+            <img src="https://foodline-production.com/wp-content/uploads/2021/10/3752781497_3752781497.webp" alt="Логотип" class="w-24 h-auto mx-auto mb-4 rounded-xl shadow-sm bg-white p-1" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\'><rect width=\'100\' height=\'100\' fill=\'%23eee\'/><text x=\'50\' y=\'50\' font-family=\'Arial\' font-size=\'14\' text-anchor=\'middle\' dy=\'.3em\' fill=\'%23999\'>Logo</text></svg>'">
+            <div class="flex items-center justify-center gap-2 mb-1">
+                <div id="statusDot" class="w-2 h-2 rounded-full bg-green-500"></div>
+                <span id="statusText" class="text-xs font-bold text-slate-500 uppercase tracking-widest">Онлайн</span>
+            </div>
+            <h1 class="text-2xl font-bold text-emerald-800">Атестація Майстрів Зміни</h1>
+            <p class="text-slate-500 text-sm">Виробництво соусів | HACCP, Food Defense, Якість</p>
+        </header>
+
+        <div id="step-login" class="card p-6 rounded-2xl">
+            <div class="bg-emerald-50 border-l-4 border-emerald-500 p-4 mb-6">
+                <h3 class="font-bold text-emerald-800 text-sm">Інформація:</h3>
+                <p class="text-xs text-emerald-700 mt-1">Результати записуються в базу. Прохідний бал: 18 правильних відповідей.</p>
+            </div>
+            <label class="block text-sm font-bold mb-2 text-slate-700">Оберіть ПІБ:</label>
+            <select id="employeeSelect" class="w-full p-3 border border-gray-300 rounded-xl bg-white text-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 mb-6"><option value="">-- Натисніть для вибору --</option></select>
+            <button onclick="startTest()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-lg transition transform active:scale-95">РОЗПОЧАТИ ОЦІНКУ</button>
+        </div>
+
+        <div id="step-quiz" class="hidden">
+            <div class="flex justify-between items-center mb-4 px-2">
+                <span class="text-xs font-bold text-slate-400 uppercase">Питання <span id="q-current">1</span> / <span id="q-total-counter">0</span></span>
+                <div class="w-1/2 bg-gray-200 rounded-full h-2"><div id="progress-bar" class="bg-emerald-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div></div>
+            </div>
+            <div class="card p-6 rounded-2xl min-h-[420px] flex flex-col justify-between">
+                <div>
+                    <h2 id="question-text" class="text-xl font-bold mb-6 text-slate-800 leading-tight"></h2>
+                    <div id="options-container" class="space-y-3"></div>
+                    <div id="feedback-container" class="hidden mt-6 feedback-box">
+                        <div id="feedback-type" class="p-4 rounded-xl border-l-4">
+                            <div class="flex items-center mb-1"><span id="feedback-icon" class="mr-2"></span><span id="feedback-title" class="font-bold"></span></div>
+                            <p id="feedback-text" class="text-sm italic"></p>
+                        </div>
+                    </div>
+                </div>
+                <button id="next-btn" onclick="nextQuestion()" disabled class="mt-8 w-full bg-gray-300 text-gray-500 font-bold py-4 rounded-xl cursor-not-allowed transition">Наступне питання</button>
+            </div>
+        </div>
+
+        <div id="step-result" class="hidden text-center">
+            <div class="card p-8 rounded-3xl">
+                <div id="sync-indicator" class="mb-4 text-[10px] font-black uppercase tracking-tighter text-amber-500 flex items-center justify-center gap-2"><span>Синхронізація...</span><div class="spinner border-2 border-amber-500 border-t-transparent rounded-full"></div></div>
+                <div id="icon-result" class="text-6xl mb-4"></div>
+                <h2 id="title-result" class="text-3xl font-bold mb-1"></h2>
+                <div class="py-6 my-4 border-y border-slate-100"><p class="text-5xl font-black text-slate-800"><span id="score-val">0</span> / <span id="score-total">0</span></p><p id="percentage-val" class="text-sm font-bold text-emerald-600 mt-2 bg-emerald-50 inline-block px-3 py-1 rounded-full"></p></div>
+                <p id="msg-result" class="text-base mb-8 px-4 text-slate-500 leading-relaxed"></p>
+                <div class="mb-8 flex justify-center"><div id="qrcode" class="p-2 bg-white border rounded-xl"></div></div>
+                <button onclick="location.reload()" class="w-full py-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition">Повернутися на головну</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzkzOkyk2zwObyZThhZE1ACAPYAtwPMZsSoUij9yHw_vEKgmkImUOCVlk-F_SH06b_w/exec';
+        const OFFLINE_QUEUE_KEY = 'sauce_safety_offline_queue';
+        
+        const employeesList = [
+            "Кішка Сергій Володимирович", "Сосновський Валерій Петрович", "Галагін Євгеній Ярославович", 
+            "Гора Андрій Олександрович", "Максімюк Анатолій Вікторович", "Садиріна Ольга Анатоліївна", 
+            "Солдатова Ірина Володимирівна", "Загура Іван Борисович", "Козурак Іван Миколайович", 
+            "Соботович Лілія Михайлівна", "Огаркова Марія Володимирівна", "Попадюк Анжела Миколаївна", 
+            "Шута Олександра Сергіївна", "Король Юрій Валерійович", "Бондаренко Валерій Валентинович", 
+            "Максімюк Анатолій Анатолійович", "Марків Олександр Йосипович", "Єрко Віктор Андрійович", 
+            "Корнієнко Жанна Василівна", "Фисина Наталія Григорівна", "Воробей Людмила Леонідівна", 
+            "Ворожко Дарья Вячеславівна", "Козило Василь Вячеславович", "Іванчук Олександр Анатолійович", 
+            "Кораблін Дмитро", "Горпиніч Олексій Станіславович", "Жук Денис", "Снітко Ярослав Іванович", 
+            "Гончарук Ольга Михайлівна", "Хлупянець Віталій Анатолійович", "Шанчук Павло Сергійович", 
+            "Ворона Інна Василівна", "Черніцький Назарій Вячеславович", "Загоруйко Наталія Володимирівна", 
+            "Буквай Ірина Вікторівна", "Вискірко Руслана Михайлівна", "Соботович Тетяна Михайлівна", 
+            "Кучера Галина Іванівна", "Миняйло Оксана Вадимівна", "Миняйло Анастасія Вадимівна", 
+            "Долинюк Олександр Миколайович", "Фалько Анатолій Олександрович", "Лавриненко Максим Миколайович", 
+            "Дудник Сергій Васильович", "Бондаренко Станіслав Олександрович"
+        ];
+
+        // 20 запитань (з них 4 хитрі)
+        const originalQuestions = [
+            { q: "Під час фасування соусу температура впала нижче критичної межі (ККТ). Ваша перша дія?", a: ["Збільшити подачу пари і фасувати далі", "Зупинити лінію, ізолювати потенційно небезпечну продукцію, повідомити відділ якості", "Оцінити консистенцію візуально і продовжити розлив"], ci: 1, h: "Вихід за межі ККТ (температура) є критичним для безпеки. Зупинка та ізоляція — обов'язкова вимога HACCP." },
+            { q: "На складі виявлено партію томатної пасти зі здутими кришками (бомбаж), термін придатності ще 2 дні.", a: ["Пустити в найближче варіння з подовженою термообробкою", "Залишити на складі і попередити персонал усно", "Ізолювати партію (червоне маркування 'БРАК'), заблокувати використання"], ci: 2, h: "Здуття тари свідчить про мікробіологічне псування. Використання такої сировини категорично заборонено." },
+            { q: "При варінні майонезного соусу оператор додав олію до того, як стабілізатори розчинилися у воді. Наслідок?", a: ["Соус розшарується (синерезис), структура буде нестабільною", "Продукт потемніє через карамелізацію", "Нічого не станеться, міксер все перемішає"], ci: 0, h: "Для утворення емульсії стабілізатори мають бути повністю гідратовані до введення жирової фази." },
+            { q: "Перехід з гірчичного соусу (алерген) на класичний кетчуп. Яка вимога до підготовки лінії?", a: ["Повне CIP-миття з обов'язковим тестуванням змивів на залишки алергену", "Промивання гарячою водою протягом 10 хвилин", "Тільки візуальний огляд чистоти котла"], ci: 0, h: "Управління алергенами вимагає верифікації (підтвердження) ефективності миття спеціальними тестами." },
+            { q: "ХИТРЕ ПИТАННЯ: На лінії розливу під час фасування зламався пневмоциліндр. Слюсар прийшов ремонтувати. Ваші дії?", a: ["Зупинити лінію, накрити зону плівкою, проконтролювати щоб слюсар мав харчове мастило (NSF H1)", "Дозволити ремонт під час роботи сусідніх вузлів лінії, щоб не зривати план розливу", "Вимкнути лінію і дозволити використання солідолу, якщо слюсар обіцяє ретельно витерти деталі"], ci: 0, h: "Пастка: безпека продукту вище за план. Ремонт під час роботи неможливий (LOTO), а мінеральні мастила (солідол) заборонені стандартом IFS на відкритих лініях." },
+            { q: "Мішок з крохмалем на складі не має штрих-коду або бірки системи SMART CODE. Ваші дії?", a: ["Використати, якщо візуально це схоже на крохмаль", "Самостійно роздрукувати випадковий штрих-код", "Заблокувати використання, ізолювати до з'ясування походження сировини"], ci: 2, h: "Сировина без простежуваності є потенційно небезпечною." },
+            { q: "ХИТРЕ ПИТАННЯ: На лінії пакування розбилася скляна пляшка з соусом. Що необхідно зробити?", a: ["Оператор повинен швидко зібрати скло руками в товстих захисних рукавицях", "Зупинити лінію, очистити зону радіусом (мінімум 1.5м) спеціальним інвентарем, забракувати відкриту тару поруч", "Просто змити уламки зі шланга в каналізацію і запустити лінію"], ci: 1, h: "Пастка: збирати скло руками заборонено навіть у рукавицях. Скло розлітається мікроуламками, тому обов'язкове очищення радіусу та бракування сусідньої відкритої тари." },
+            { q: "У фасувальника на пальці свіжий поріз із накладеним звичайним тканинним (тілесним) пластиром. Рішення майстра?", a: ["Відсторонити до заміни на синій пластир (з металодетектором) та одягання рукавички", "Допустити до роботи, поріз же закритий", "Змусити зняти пластир, щоб рана підсихала"], ci: 0, h: "Тканинний пластир може відклеїтись, синій колір і металева вставка забезпечують детекцію." },
+            { q: "Оператор CIP пропонує зменшити концентрацію лужного розчину на 50%, щоб швидше закінчити зміну.", a: ["Погодитися, якщо він збільшить температуру розчину", "Дозволити, якщо візуально танки не сильно брудні", "Категорично заборонити, проконтролювати заміри титру (концентрації)"], ci: 2, h: "Зниження концентрації хімії призведе до накопичення жирової плівки та бактеріального забруднення майбутніх партій." },
+            { q: "ХИТРЕ ПИТАННЯ: Проведено дезінфекцію лінії розчином надоцтової кислоти (НОК). Що має зробити майстер перед запуском соусу?", a: ["Одразу пускати соус, кислота повністю безпечна і швидко випаровується", "Проконтролювати промивання водою і зробити тест на залишки індикаторними смужками", "Просто візуально оцінити відсутність піни і дати старт"], ci: 1, h: "Пастка: НОК часто не потребує змивання в деяких галузях, але у густих соусах залишки хімії можуть змінити органолептику, тому верифікація відсутності хімії водою/смужками є обов'язковою." },
+            { q: "Управління відходами: утворився бій скла, обрізки плівки та залишки соусу з лінії.", a: ["Забезпечити роздільний збір у марковані контейнери, соус — в спеціальний бак (категорія 3)", "Скинути все в один великий пакет і вивезти на рампу", "Злити соус у трап (каналізацію), скло — у смітник"], ci: 0, h: "Роздільний збір і заборона зливу густих відходів у каналізацію — базові вимоги екології та IFS." },
+            { q: "Food Defense: Майстер помітив у цеху сторонню людину в цивільному, яка фотографує лінію розливу.", a: ["Зажадати припинити зйомку, вивести із зони, викликати службу охорони", "Не заважати, раптом це таємний аудит від керівництва", "Попросити оператора просто простежити за людиною"], ci: 0, h: "Несанкціонований доступ сторонніх осіб (без спецодягу і супроводу) є прямим порушенням плану захисту продукції (Food Defense)." },
+            { q: "Біотероризм: Біля розкритого мішка зі спеціями розсипано невідомий сірий порошок.", a: ["Наказати швидко все прибрати і вимити підлогу", "Заблокувати зону, нікого не підпускати, викликати керівника служби безпеки/якості", "Зібрати порошок в банку і самостійно нести в лабораторію"], ci: 1, h: "Підозра на умисне отруєння/зараження вимагає повної ізоляції доказів і зони без самодіяльності." },
+            { q: "Pest Control: Вимкнена інсектицидна лампа (мухоловка), а пастка для мишей зміщена з-під стіни.", a: ["Зафіксувати відхилення, повернути пастку згідно зі схемою, повідомити відповідального", "Переставити пастку туди, де її не будуть чіпати вантажники", "Проігнорувати, оскільки комах і мишей візуально не видно"], ci: 0, h: "Пастки встановлюються строго за затвердженою картою. Будь-яке зміщення ламає контур захисту від шкідників." },
+            { q: "Оператор систематично заповнює технологічний журнал (температури) «з пам'яті» наприкінці зміни.", a: ["Ігнорувати, якщо соус якісний і без браку", "Забрати журнал і заповнювати самостійно", "Провести бесіду, встановити точки контролю онлайн-записів під час зміни"], ci: 2, h: "Записи пост-фактум руйнують простежуваність і є грубим порушенням при будь-якому аудиті (FSSC 22000, IFS)." },
+            { q: "Попередження сторонніх предметів: Оператор приніс скляну термокружку та кулькову ручку з ковпачком.", a: ["Вилучити кружку, ручку замінити на суцільнометалеву (або без ковпачка)", "Дозволити залишити кружку на столі майстра", "Не звертати уваги, детектори або фільтри все вловлять"], ci: 0, h: "Скло і дрібний крихкий пластик (ковпачки) — головні причини потрапляння сторонніх предметів у кінцевий продукт." },
+            { q: "ХИТРЕ ПИТАННЯ: Збій системи SMART CODE — програма не генерує штрих-код для готової палети соусу.", a: ["Попросити склад прийняти палету 'на словах', а в базі провести завтра", "Видалити 'глючний' інгредієнт з віртуальної рецептури, щоб обійти помилку системи", "Заблокувати партію, ініціювати розслідування та перевірку ручних журналів руху сировини"], ci: 2, h: "Пастка: видалення інгредієнта для обходу помилки — це фальсифікація даних простежуваності. Продукт не може покинути цех без відновленого ланцюжка історії." },
+            { q: "Відхилення сировини: Нова партія сливового пюре має занадто низький pH (дуже кисла).", a: ["Додати харчової соди 'на око' для нейтралізації кислоти", "Зв'язатися з технологом (R&D) для офіційного коригування рецептури варіння", "Пустити в роботу без змін, споживач не помітить"], ci: 1, h: "Будь-які відхилення вхідних параметрів вимагають виключно санкціонованого технологічного рішення, щоб не зіпсувати смак соусу." },
+            { q: "Автоматичний лічильник води показує суттєву похибку під час дозування в реактор.", a: ["Дозувати воду 'на око', спираючись на досвід варильника", "Зупинити роботу всього цеху і чекати сервіс-інженера", "Перейти на ручне дозування за вагою/рівнем у каліброваній ємності"], ci: 2, h: "Дозування 'на око' є неприпустимим. Слід використовувати альтернативні (дублюючі) засоби вимірювальної техніки." },
+            { q: "Передача зміни: Майстер не встигає закінчити CIP-миття танків до приходу змінника.", a: ["Залишити танк наполовину вимитим з хімією і мовчки піти додому", "Вимкнути мийку, злити воду і сказати, що танк повністю готовий до роботи", "Передати танк у статусі 'В процесі миття' з чіткою фіксацією етапу в журналі та усною передачею інфи зміннику"], ci: 2, h: "Недостовірна інформація при передачі зміни щодо залишків мийної хімії в обладнанні може призвести до масового отруєння споживачів." }
+        ];
+
+        let currentQIndex = 0, score = 0, userName = "", selectedOptionIndex = null, testLog = [], currentOptions = [];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const select = document.getElementById('employeeSelect');
+            employeesList.sort((a, b) => a.localeCompare(b, 'uk')).forEach(name => { 
+                const opt = document.createElement('option'); 
+                opt.value = name; 
+                opt.textContent = name; 
+                select.appendChild(opt); 
+            });
+            document.getElementById('q-total-counter').innerText = originalQuestions.length;
+            
+            updateNetworkStatus();
+            window.addEventListener('online', () => { updateNetworkStatus(); processOfflineQueue(); });
+            window.addEventListener('offline', updateNetworkStatus);
+        });
+
+        function shuffle(a) { 
+            for (let i = a.length - 1; i > 0; i--) { 
+                const j = Math.floor(Math.random() * (i + 1)); 
+                [a[i], a[j]] = [a[j], a[i]]; 
+            } 
+            return a; 
+        }
+
+        function startTest() { 
+            userName = document.getElementById('employeeSelect').value; 
+            if (!userName) { alert("Оберіть ПІБ зі списку"); return; } 
+            document.getElementById('step-login').classList.add('hidden'); 
+            document.getElementById('step-quiz').classList.remove('hidden'); 
+            renderQuestion(); 
+        }
+
+        function renderQuestion() {
+            const q = originalQuestions[currentQIndex];
+            document.getElementById('q-current').innerText = currentQIndex + 1;
+            document.getElementById('progress-bar').style.width = `${(currentQIndex / originalQuestions.length) * 100}%`;
+            document.getElementById('question-text').innerText = q.q;
+            document.getElementById('feedback-container').classList.add('hidden');
+            
+            const container = document.getElementById('options-container'); 
+            container.innerHTML = '';
+            
+            const nextBtn = document.getElementById('next-btn'); 
+            nextBtn.disabled = true;
+            nextBtn.className = "mt-8 w-full bg-gray-300 text-gray-500 font-bold py-4 rounded-xl cursor-not-allowed transition";
+            nextBtn.innerText = currentQIndex === originalQuestions.length - 1 ? "Завершити тест" : "Наступне питання";
+            
+            currentOptions = q.a.map((text, i) => ({ text, isCorrect: i === q.ci }));
+            shuffle(currentOptions);
+            
+            currentOptions.forEach((opt, i) => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn w-full text-left p-4 rounded-xl text-lg flex items-center mb-2 leading-tight';
+                btn.innerHTML = `<span class="w-8 h-8 rounded-full border-2 border-slate-200 flex-shrink-0 flex items-center justify-center mr-3 text-xs font-bold text-slate-400">${String.fromCharCode(65 + i)}</span> <span>${opt.text}</span>`;
+                btn.onclick = () => showFeedback(i, btn);
+                container.appendChild(btn);
+            });
+        }
+
+        function showFeedback(idx, btn) {
+            if (selectedOptionIndex !== null) return;
+            selectedOptionIndex = idx;
+            const isCorrect = currentOptions[idx].isCorrect;
+            
+            if (isCorrect) { 
+                score++; 
+                btn.classList.add('correct-choice'); 
+                testLog.push('✅'); 
+            } else { 
+                btn.classList.add('wrong-choice'); 
+                testLog.push('❌'); 
+                document.querySelectorAll('.option-btn').forEach((b, i) => { 
+                    if (currentOptions[i].isCorrect) b.classList.add('correct-choice'); 
+                }); 
+            }
+            
+            document.querySelectorAll('.option-btn').forEach(b => b.classList.add('disabled'));
+            
+            const fbox = document.getElementById('feedback-container');
+            const ftype = document.getElementById('feedback-type');
+            const ficon = document.getElementById('feedback-icon');
+            const ftitle = document.getElementById('feedback-title');
+            const ftext = document.getElementById('feedback-text');
+            
+            fbox.classList.remove('hidden'); 
+            ftext.innerText = originalQuestions[currentQIndex].h;
+            
+            if (isCorrect) { 
+                ftype.className = "p-4 rounded-xl border-l-4 border-emerald-500 bg-emerald-50 text-emerald-800"; 
+                ficon.innerText = "✅"; 
+                ftitle.innerText = "Вірно!"; 
+            } else { 
+                ftype.className = "p-4 rounded-xl border-l-4 border-red-500 bg-red-50 text-red-800"; 
+                ficon.innerText = "❌"; 
+                ftitle.innerText = "Помилка!"; 
+            }
+            
+            const nextBtn = document.getElementById('next-btn'); 
+            nextBtn.disabled = false; 
+            nextBtn.className = "mt-8 w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 rounded-xl shadow-lg transition transform active:scale-95";
+        }
+
+        function nextQuestion() { 
+            selectedOptionIndex = null; 
+            currentQIndex++; 
+            if (currentQIndex < originalQuestions.length) renderQuestion(); 
+            else showResults(); 
+        }
+
+        function showResults() {
+            document.getElementById('step-quiz').classList.add('hidden'); 
+            document.getElementById('step-result').classList.remove('hidden');
+            
+            const total = originalQuestions.length;
+            const pct = Math.round((score / total) * 100);
+            const passed = score >= 18; 
+            
+            document.getElementById('score-val').innerText = score; 
+            document.getElementById('score-total').innerText = total;
+            document.getElementById('percentage-val').innerText = `${pct}% Правильних відповідей`;
+            
+            const icon = document.getElementById('icon-result');
+            const title = document.getElementById('title-result');
+            const msg = document.getElementById('msg-result');
+            
+            if (passed) { 
+                icon.innerText = "🏆"; 
+                title.innerText = "Атестацію Пройдено"; 
+                title.className = "text-3xl font-black mb-1 text-emerald-600"; 
+                msg.innerText = "Вітаємо! Ви підтвердили високий рівень компетенції майстра зміни. Ваш результат збережено в базу."; 
+            } else { 
+                icon.innerText = "⚠️"; 
+                title.innerText = "Атестацію Не Складено"; 
+                title.className = "text-3xl font-black mb-1 text-red-600"; 
+                msg.innerText = `Необхідно набрати мінімум 18 балів. У вас ${score}. Рекомендуємо повторити вимоги HACCP та IFS перед наступною спробою.`; 
+            }
+            
+            const payload = { 
+                formType: 'SHIFT_MASTER_COMPETENCY', 
+                name: userName, 
+                score: score, 
+                total: total, 
+                percent: pct, 
+                passed: passed, 
+                details: testLog.join(' '), 
+                date: new Date().toISOString() 
+            };
+            
+            sendToGAS(payload);
+            
+            const qrText = `MASTER:${userName}|${score}/${total}|${passed?'OK':'FAIL'}|${testLog.join('')}`;
+            try { 
+                new QRCode(document.getElementById("qrcode"), { text: qrText, width: 140, height: 140, correctLevel : QRCode.CorrectLevel.L }); 
+            } catch (e) { console.error("QR Code Error:", e); }
+        }
+
+        function sendToGAS(p) {
+            if (!navigator.onLine) { saveToOffline(p); return; }
+            fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(p) })
+            .then(() => document.getElementById('sync-indicator').innerHTML = '<span class="text-emerald-500 font-bold uppercase tracking-widest text-[10px]">✅ Збережено на сервер</span>')
+            .catch(() => saveToOffline(p));
+        }
+
+        function saveToOffline(p) { 
+            const q = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); 
+            q.push(p); 
+            localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q)); 
+            document.getElementById('sync-indicator').innerHTML = '<span class="text-amber-500 font-bold uppercase tracking-widest text-[10px]">📵 Збережено офлайн (чекаємо інтернет)</span>'; 
+        }
+
+        async function processOfflineQueue() {
+            if (!navigator.onLine) return; 
+            const q = JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]'); 
+            if (q.length === 0) return;
+            
+            document.getElementById('sync-indicator').innerHTML = '<span class="text-amber-500 font-bold uppercase tracking-widest text-[10px]">Синхронізація офлайн даних...</span>';
+            for (const p of [...q]) { 
+                try { 
+                    await fetch(GOOGLE_SCRIPT_URL, { method: 'POST', mode: 'no-cors', body: JSON.stringify(p) }); 
+                    q.shift(); 
+                } catch (e) { break; } 
+            }
+            localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(q)); 
+            updateNetworkStatus();
+            document.getElementById('sync-indicator').innerHTML = '<span class="text-emerald-500 font-bold uppercase tracking-widest text-[10px]">✅ Всі дані синхронізовано</span>';
+        }
+
+        function updateNetworkStatus() { 
+            const dot = document.getElementById('statusDot');
+            const txt = document.getElementById('statusText'); 
+            if (!navigator.onLine) { 
+                dot.className = 'w-2 h-2 rounded-full bg-red-500'; 
+                txt.textContent = 'Офлайн'; 
+            } else { 
+                dot.className = 'w-2 h-2 rounded-full bg-green-500'; 
+                txt.textContent = 'Онлайн'; 
+            } 
+        }
+    </script>
+</body>
+</html>
